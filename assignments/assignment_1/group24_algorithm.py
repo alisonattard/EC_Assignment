@@ -138,6 +138,7 @@ RUN_NAME: str = args.run_name
 # Determinism
 SEED = args.seed
 RNG = np.random.default_rng(SEED)
+random.seed(SEED)
 
 SCRIPT_NAME = Path(__file__).stem
 CWD = Path.cwd()
