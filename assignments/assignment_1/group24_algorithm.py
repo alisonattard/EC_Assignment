@@ -3,6 +3,8 @@ Morphology-only evolution using TreeGenome and morphological descriptors.
 Evolves robot structures based purely on morphological properties without simulation.
 """
 #my own imports
+import csv
+
 from tree_edit_distance import mean_plus_std_tree_edit_distance
 from pathlib import Path
 from ariel.body_phenotypes.robogen_lite.decoders._blueprint import load_graph_from_json
@@ -120,7 +122,13 @@ parser.add_argument(
     "--run-name",
     type=str,
     default="run",
-    help="Name identifying this run, e.g. variantA, variantB",
+    help="Name identifying this run, e.g. variantA, variantB, Baseline",
+)
+parser.add_argument(
+    "--baseline",
+    action=argparse.BooleanOptionalAction,
+    default=False,
+    help="Run random search baseline instead of the evolutionary algorithm",
 )
 args = parser.parse_args()
 
@@ -243,6 +251,45 @@ def visualize_genome(genome: TreeGenome) -> None:
         viewer.launch(model=model, data=data)
     except Exception as e:
         console.log(f"[red]Visualization failed: {e}[/red]")
+
+
+# ============================================================================ #
+#                            RANDOM-SEARCH BASELINE                            #
+# ============================================================================ #
+
+def random_search_baseline() -> None:
+    """
+    Run a random search baseline for comparison against the evolutionary algorithm.
+    
+    Generates random robots and tracks the best one found so far fitness.
+    """
+    num_generations = BUDGET + 1
+    best_fitness = float("inf")
+    results = []
+
+    console.rule("[bold purple]Starting Random Search Baseline:[/bold purple]")
+    console.log(f"{POP_SIZE * num_generations} evaluations, {POP_SIZE} per generation, {num_generations} generations")
+
+    for generation in track(range(num_generations), description="Random search..."):
+        for _ in range(POP_SIZE):
+            genome = random_tree(NUM_MODULES)
+            fitness = calculate_target_fitness(genome)
+            if fitness < best_fitness:
+                best_fitness = fitness
+
+        results.append((generation, best_fitness))
+
+        file_path = DATA / f"{RUN_NAME}_random_search_seed{SEED}.csv"
+        with open(file_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["generation", "best_fitness"])
+            writer.writerows(results)
+
+        console.log(f"[bold green]Best fitness found: {best_fitness:.4f}[/bold green] at generation {generation}")
+        console.log(f"[bold blue]Baseline results saved to {file_path}[/bold blue]")
+        
+            
+        
 
 
 # ============================================================================ #
@@ -499,6 +546,11 @@ def main() -> None:
     console.log(
         f"Population: {POP_SIZE}, Budget: {BUDGET}, Max Modules: {NUM_MODULES}, Mutation Weights: {MUTATION_WEIGHTS}, Seed: {SEED}, Run Name: {RUN_NAME}",
     )
+
+    if args.baseline:
+        console.rule("[bold yellow]Running Random Search Baseline[/bold yellow]")
+        random_search_baseline()
+        return
 
     evo = MorphologyEvolution()
     start_time = time.time()
