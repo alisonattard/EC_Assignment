@@ -294,10 +294,15 @@ def main() -> None:
     if not run_map:
         raise FileNotFoundError("No output files were found.")
 
+    print("Summarise runs", flush=True)
     summary = summarise_runs(run_map)
+    print("Writing results to CSV", flush=True)
     save_results_csv(summary, out_dir)
+    print("Generating plots", flush=True)
     plot_convergence(summary, out_dir)
+    print("Generating diversity plots", flush=True)
     plot_diversity(summary, out_dir)
+    print("Generating final best fitness plots", flush=True)
     plot_final_best_fitness(run_map, out_dir)
 
     elapsed_time = time.perf_counter() - start_total
