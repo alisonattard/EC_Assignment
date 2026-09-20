@@ -108,65 +108,54 @@ def load_baseline_csv(csv_path: Path) -> dict[int, float]:
             values[gen] = float(row["best_fitness"])
     return dict(sorted(values.items()))
 
-
 def summarise_runs(
     run_map: dict[str, list[dict[int, dict[str, float | list[float]]]]]
 ) -> dict[str, dict[int, dict[str, float]]]:
-    """Aggregate per-generation best/mean/diversity across seeds for each variant."""
+    """Aggregate per-generation best/diversity across seeds (mean and std)."""
     summary: dict[str, dict[int, dict[str, float]]] = {}
     for variant, series_list in run_map.items():
         generations = sorted({g for series in series_list for g in series})
         variant_summary: dict[int, dict[str, float]] = {}
         for g in generations:
             values_best = [float(series[g]["best"]) for series in series_list if g in series]
-            values_mean = [float(series[g]["mean"]) for series in series_list if g in series]
             values_diversity = [float(series[g]["diversity"]) for series in series_list if g in series]
             variant_summary[g] = {
-                "best_median": float(np.median(values_best)) if values_best else np.nan,
-                "best_q25": float(np.percentile(values_best, 25)) if values_best else np.nan,
-                "best_q75": float(np.percentile(values_best, 75)) if values_best else np.nan,
-                "mean_median": float(np.median(values_mean)) if values_mean else np.nan,
-                "diversity_median": float(np.median(values_diversity)) if values_diversity else np.nan,
-                "diversity_q25": float(np.percentile(values_diversity, 25)) if values_diversity else np.nan,
-                "diversity_q75": float(np.percentile(values_diversity, 75)) if values_diversity else np.nan,
+                "best_mean": float(np.mean(values_best)) if values_best else np.nan,
+                "best_std": float(np.std(values_best, ddof=1)) if len(values_best) > 1 else 0.0,
+                "diversity_mean": float(np.mean(values_diversity)) if values_diversity else np.nan,
+                "diversity_std": float(np.std(values_diversity, ddof=1)) if len(values_diversity) > 1 else 0.0,
             }
         summary[variant] = variant_summary
     return summary
-
-
 def plot_convergence(summary: dict[str, dict[int, dict[str, float]]], out_dir: Path) -> None:
-    """Plot median convergence curves with IQR envelopes."""
+    """Plot mean convergence curves with +/-1 SD bands over seeds."""
     plt.figure(figsize=(8, 5))
     for label, curve in summary.items():
         gens = sorted(curve)
-        best = [curve[g]["best_median"] for g in gens]
-        q25 = [curve[g]["best_q25"] for g in gens]
-        q75 = [curve[g]["best_q75"] for g in gens]
-        plt.plot(gens, best, marker="x", linewidth=2.5, label=label)
-        plt.fill_between(gens, q25, q75, alpha=0.2)
+        mean = np.array([curve[g]["best_mean"] for g in gens])
+        std = np.array([curve[g]["best_std"] for g in gens])
+        plt.plot(gens, mean, linewidth=2.0, label=label)
+        plt.fill_between(gens, mean - std, mean + std, alpha=0.2)
 
-    plt.title("Convergence Curves (median best fitness over generations)")
+    plt.title("Convergence (mean best fitness over generations)")
     plt.xlabel("Generation")
-    plt.ylabel("Best Fitness")
+    plt.ylabel("Best Fitness (lower is better)")
     plt.legend()
     plt.grid()
     plt.tight_layout()
     plt.savefig(out_dir / "convergence.png")
     plt.close()
-
-
 def plot_diversity(summary: dict[str, dict[int, dict[str, float]]], out_dir: Path) -> None:
-    """Plot median genotype diversity over generations."""
+    """Plot mean genotype diversity over generations with +/-1 SD bands."""
     plt.figure(figsize=(8, 5))
     for label, curve in summary.items():
         gens = sorted(curve)
-        diversity = [curve[g]["diversity_median"] for g in gens]
-        q25 = [curve[g]["diversity_q25"] for g in gens]
-        q75 = [curve[g]["diversity_q75"] for g in gens]
-        plt.plot(gens, diversity, marker="x", linewidth=2.5, label=label)
-        plt.fill_between(gens, q25, q75, alpha=0.2)
+        mean = np.array([curve[g]["diversity_mean"] for g in gens])
+        std = np.array([curve[g]["diversity_std"] for g in gens])
+        plt.plot(gens, mean, linewidth=2.0, label=label)
+        plt.fill_between(gens, mean - std, mean + std, alpha=0.2)
 
-    plt.title("Genotype Diversity Curves (median population over generations)")
+    plt.title("Population diversity (mean pairwise tree edit distance)")
     plt.xlabel("Generation")
     plt.ylabel("Mean Tree Edit Distance")
     plt.legend()
@@ -174,7 +163,6 @@ def plot_diversity(summary: dict[str, dict[int, dict[str, float]]], out_dir: Pat
     plt.tight_layout()
     plt.savefig(out_dir / "diversity.png")
     plt.close()
-
 
 def plot_final_best_fitness(
     run_map: dict[str, list[dict[int, dict[str, float | list[float]]]]],
@@ -199,7 +187,6 @@ def plot_final_best_fitness(
     plt.savefig(out_dir / "final_best_fitness.png")
     plt.close()
 
-
 def save_results_csv(summary: dict[str, dict[int, dict[str, float]]], out_dir: Path) -> None:
     """Save summary results to CSV file."""
     rows: list[dict[str, Any]] = []
@@ -209,12 +196,10 @@ def save_results_csv(summary: dict[str, dict[int, dict[str, float]]], out_dir: P
                 {
                     "variant": variant,
                     "generation": int(gen),
-                    "best_median": metrics["best_median"],
-                    "best_q25": metrics["best_q25"],
-                    "best_q75": metrics["best_q75"],
-                    "diversity_median": metrics["diversity_median"],
-                    "diversity_q25": metrics["diversity_q25"],
-                    "diversity_q75": metrics["diversity_q75"],
+                    "best_mean": metrics["best_mean"],
+                    "best_std": metrics["best_std"],
+                    "diversity_mean": metrics["diversity_mean"],
+                    "diversity_std": metrics["diversity_std"],
                 }
             )
 
@@ -225,17 +210,14 @@ def save_results_csv(summary: dict[str, dict[int, dict[str, float]]], out_dir: P
             fieldnames=[
                 "variant",
                 "generation",
-                "best_median",
-                "best_q25",
-                "best_q75",
-                "diversity_median",
-                "diversity_q25",
-                "diversity_q75",
+                "best_mean",
+                "best_std",
+                "diversity_mean",
+                "diversity_std",
             ],
         )
         writer.writeheader()
         writer.writerows(rows)
-
 
 def resolve_variant_files(data_dir: Path, variant: str, seeds: list[int]) -> list[Path]:
     """Resolve the file paths for a given variant and seeds."""
