@@ -69,10 +69,9 @@ def db_run(db_path: Path) -> dict[int, dict[str, float | list[float]]]:
     gen_to_rows: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         for g in range(int(row["birth"]), int(row["death"]) + 1):
-            if row["death"] == 0 and row["alive"]:
+            if row["alive"] or g < int(row["death"]):
                 gen_to_rows[g].append(row)
-            elif g < int(row["death"]):
-                gen_to_rows[g].append(row)
+            
 
     out: dict[int, dict[str, float | list[float]]] = {}
     for gen in range(max_gen + 1):

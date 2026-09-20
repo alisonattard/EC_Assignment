@@ -46,7 +46,9 @@
 	"containerEnv": {
 		"PYTHONDONTWRITEBYTECODE": "True",
 		"PYTHONUNBUFFERED": "True",
-		"UV_LINK_MODE": "copy"
+		"UV_LINK_MODE": "copy",
+		"MUJOCO_GL": "osmesa"
+
 	},
 	"postCreateCommand": "zsh .devcontainer/scripts/postCreateCommand.sh"
 }
