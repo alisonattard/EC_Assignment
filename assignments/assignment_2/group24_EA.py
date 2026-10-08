@@ -88,9 +88,16 @@ def make_individual() -> Individual:
 
 # ── EA steps ─────────────────────────────────────────────────────────────────
 
+NAN_FITNESS = 1e6
+
 def evaluate(population: Population) -> Population:
     for ind in population.unevaluated:
-        ind.fitness = run_experiment(ind.genotype, mode="simple")
+        fitness = run_experiment(ind.genotype, mode="simple")
+        if not np.isfinite(fitness):          # vangt NaN én inf
+            console.log(f"[red]Ongeldige fitness ({fitness}) voor individu {ind.id}")
+            ind.tags = {"invalid_eval": True}
+            fitness = NAN_FITNESS
+        ind.fitness = fitness
     return population
 
 def parent_selection(population: Population) -> Population:
